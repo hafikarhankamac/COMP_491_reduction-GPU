@@ -1,0 +1,23 @@
+
+Device                                               : 0
+Name                                                 : GeForce GTX 960M [1176Mhz - supports CUDA 5.0]
+Number of processors                                 : 5
+Global memory                                        : 2147483648
+Max threads per block                                : 1024
+Max threads of a block for each dimension (x, y, z)  : (1024, 1024, 64)
+Max block size of a grid for each dimension (x, y, z): (2147483647, 65535, 65535)
+Warp size                                            : 32
+
+Execution parameters
+
+Matrix reduction method                              : multiply
+Matrix dimension                                     : 2
+Matrix dimension size (rows, columns)                : (2048, 2048)
+Matrix dimension to reduce                           : 2
+Matrix reduction kernel block size                   : 64
+
+Performance = 166.65 GFlop/s, Time = 0.050 msec, Size = 8388608 Ops, WorkgroupSize = 65536 threads/block
+
+Elapsed time GPU = 0.00100 s
+
+Elapsed time CPU = 0.99800 s
