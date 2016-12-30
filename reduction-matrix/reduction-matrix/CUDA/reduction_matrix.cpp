@@ -5,7 +5,7 @@
 
 namespace ReductionMatrixLib {
 
-	void ReductionMatrix::SumMatrix(cudafloat *inputs, cudafloat *outputs, int rows, int columns, int dimensiontoreduce, int maxthreadsperblock, int optimalblocksize) {
+	void ReductionMatrix::SumMatrix(float *inputs, float *outputs, int rows, int columns, int dimensiontoreduce, int maxthreadsperblock, int optimalblocksize) {
 
 		//int rowsblockSize = NumberThreadsPerBlockThatBestFit(rows, OPTIMAL_BLOCK_SIZE_REDUCTION);
 		//int columnsblockSize = NumberThreadsPerBlockThatBestFit(columns, OPTIMAL_BLOCK_SIZE_REDUCTION);
@@ -13,14 +13,42 @@ namespace ReductionMatrixLib {
 		//int blockSize = ((rowsblockSize >= columnsblockSize) ? rowsblockSize : columnsblockSize);
 		int blockSize = optimalblocksize;
 
+		//dim3 threads(blockSize * blockSize, 1, 1);
 		dim3 threads(blockSize, blockSize, 1);
 
-		dim3 blocks(ceil(rows / threads.x), ceil(columns / threads.y), 1);
+		//dim3 blocks((rows / threads.x) * (columns / threads.y), 1, 1);
+		//dim3 blocks(ceil(rows / threads.x), ceil(columns / threads.y), 1);
+		dim3 blocks(rows / threads.x, columns / threads.y, 1);
 
 		KernelSumMatrix(blocks, threads, blockSize, inputs, outputs, rows, columns, dimensiontoreduce);
 	}
 
-	void ReductionMatrix::MultiplyMatrix(cudafloat *inputs, cudafloat *outputs, int rows, int columns, int dimensiontoreduce, int maxthreadsperblock, int optimalblocksize) {
+	void ReductionMatrix::SumMatrixX(float *inputs, float *outputs, int rows, int columns, int dimensiontoreduce, int maxthreadsperblock, int optimalblocksize) {
+
+		//int rowsblockSize = NumberThreadsPerBlockThatBestFit(rows, OPTIMAL_BLOCK_SIZE_REDUCTION);
+		//int columnsblockSize = NumberThreadsPerBlockThatBestFit(columns, OPTIMAL_BLOCK_SIZE_REDUCTION);
+
+		//int blockSize = ((rowsblockSize >= columnsblockSize) ? rowsblockSize : columnsblockSize);
+		int blockSize = optimalblocksize;
+
+		//dim3 threads(blockSize * blockSize, 1, 1);
+		dim3 threads(blockSize, blockSize, 1);
+
+		//dim3 threads(blockSize, 1, 1);
+		//dim3 threads(128, 1);
+
+		//dim3 blocks((rows / threads.x) * (columns / threads.y), 1, 1);
+		//dim3 blocks(ceil(rows / threads.x), ceil(columns / threads.y), 1);
+		dim3 blocks(rows / threads.x, columns / threads.y, 1);
+
+		//dim3 blocks((rows / 128 + 1), columns);
+
+		//printf("\nblocks.x = %d, blocks.y= %d, threads.x = %d, threads.y = %d\n", blocks.x, blocks.y, threads.x, threads.y);
+
+		KernelSumMatrixX(blocks, threads, blockSize, inputs, outputs, rows, columns, dimensiontoreduce);
+	}
+
+	void ReductionMatrix::MultiplyMatrix(float *inputs, float *outputs, int rows, int columns, int dimensiontoreduce, int maxthreadsperblock, int optimalblocksize) {
 
 		int blockSize = optimalblocksize;
 
@@ -32,11 +60,11 @@ namespace ReductionMatrixLib {
 		KernelMultiplyMatrix(blocks, threads, blockSize, inputs, outputs, ((rows >= columns) ? rows : columns), ((columns >= rows) ? columns : rows), dimensiontoreduce);
 	}
 
-	void ReductionMatrix::SumMatrix3D(cudafloat *inputs, cudafloat *outputs, int rows, int columns, int panels, int dimensiontoreduce, int maxthreadsperblock, int optimalblocksize) {
+	void ReductionMatrix::SumMatrix3D(float *inputs, float *outputs, int rows, int columns, int planes, int dimensiontoreduce, int maxthreadsperblock, int optimalblocksize) {
 
 		//int rowsblockSize = NumberThreadsPerBlockThatBestFit(rows, OPTIMAL_BLOCK_SIZE_REDUCTION);
 		//int columnsblockSize = NumberThreadsPerBlockThatBestFit(columns, OPTIMAL_BLOCK_SIZE_REDUCTION);
-		//int panelsblockSize = NumberThreadsPerBlockThatBestFit(panels, OPTIMAL_BLOCK_SIZE_REDUCTION);
+		//int panelsblockSize = NumberThreadsPerBlockThatBestFit(planes, OPTIMAL_BLOCK_SIZE_REDUCTION);
 
 		//int blockSize = ((rowsblockSize >= columnsblockSize) ? rowsblockSize : columnsblockSize);
 		//blockSize = ((blockSize >= panelsblockSize) ? blockSize : panelsblockSize);
@@ -44,19 +72,19 @@ namespace ReductionMatrixLib {
 
 		dim3 threads(blockSize, blockSize, blockSize);
 
-		dim3 blocks(ceil(rows / threads.x), ceil(columns / threads.y), ceil(panels / threads.z));
+		dim3 blocks(ceil(rows / threads.x), ceil(columns / threads.y), ceil(planes / threads.z));
 
-		KernelSumMatrix3D(blocks, threads, blockSize, inputs, outputs, rows, columns, panels, dimensiontoreduce);
+		KernelSumMatrix3D(blocks, threads, blockSize, inputs, outputs, rows, columns, planes, dimensiontoreduce);
 	}
 
-	void ReductionMatrix::MultiplyMatrix3D(cudafloat *inputs, cudafloat *outputs, int rows, int columns, int panels, int dimensiontoreduce, int maxthreadsperblock, int optimalblocksize) {
+	void ReductionMatrix::MultiplyMatrix3D(float *inputs, float *outputs, int rows, int columns, int planes, int dimensiontoreduce, int maxthreadsperblock, int optimalblocksize) {
 
 		int blockSize = optimalblocksize;
 
 		dim3 threads(blockSize, blockSize, blockSize);
 
-		dim3 blocks(ceil(rows / threads.x), ceil(columns / threads.y), ceil(panels / threads.z));
+		dim3 blocks(ceil(rows / threads.x), ceil(columns / threads.y), ceil(planes / threads.z));
 
-		KernelMultiplyMatrix3D(blocks, threads, blockSize, inputs, outputs, rows, columns, panels, dimensiontoreduce);
+		KernelMultiplyMatrix3D(blocks, threads, blockSize, inputs, outputs, rows, columns, planes, dimensiontoreduce);
 	}
 }

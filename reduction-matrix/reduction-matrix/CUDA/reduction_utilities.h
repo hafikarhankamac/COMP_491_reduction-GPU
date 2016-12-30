@@ -5,11 +5,35 @@
 
 namespace ReductionMatrixLib {
 
-	//! Finds the number of threads (multiple of 2) per block that either is greater that the number of threads needed or identical to the maximum number of threads per block.
-	//! \param threads Number of threads.
-	//! \param maxThreadsPerBlock Maximum number of threads.
-	//! \return The number of threads (multiple of 2) per block that either is greater that the number of threads needed or identical to the maximum number of threads per block.
-	//! \sa CUDA_MAX_THREADS_PER_BLOCK, NumberBlocks
+	/*
+	void getNumBlocksAndThreads(int whichKernel, int n, int maxBlocks, int maxThreads, int maxGridSizeX, int maxThreadsPerBlock, int &blocks, int &threads) {
+
+		if (whichKernel < 3) {
+			threads = (n < maxThreads) ? nextPow2(n) : maxThreads;
+			blocks = (n + threads - 1) / threads;
+		}
+		else {
+			threads = (n < maxThreads * 2) ? nextPow2((n + 1) / 2) : maxThreads;
+			blocks = (n + (threads * 2 - 1)) / (threads * 2);
+		}
+
+		if ((float)(threads * blocks) > (float)(maxGridSizeX * maxThreadsPerBlock)) {
+			//printf("n is too large, please choose a smaller number!\n");
+		}
+
+		if (blocks > maxGridSizeX) {
+			//printf("Grid size <%d> exceeds the device capability <%d>, set block size as %d (original %d)\n", blocks, maxGridSizeX, threads * 2, threads);
+
+			blocks /= 2;
+			threads *= 2;
+		}
+
+		if (whichKernel == 6) {
+			blocks = MIN(maxBlocks, blocks);
+		}
+	}
+	*/
+
 	inline int NumberThreadsPerBlockThatBestFit(int threads, int maxThreadsPerBlock = CUDA_MAX_THREADS_PER_BLOCK) {
 
 		int nt = 1;
@@ -19,11 +43,6 @@ namespace ReductionMatrixLib {
 		return nt;
 	}
 
-	//! Finds the number of blocks needed to execute the number of threads specified, given a block size.
-	//! \param threads Number of threads.
-	//! \param blockSize Block size.
-	//! \return The number of blocks needed to execute the number of threads specified.
-	//! \sa NumberThreadsPerBlockThatBestFit, CUDA_MAX_THREADS_PER_BLOCK
 	inline int NumberBlocks(int threads, int blockSize) {
 
 		int nb = threads / blockSize;
@@ -33,9 +52,6 @@ namespace ReductionMatrixLib {
 		return nb;
 	}
 
-	//! Makes sure that the block does not have more than the maximum number of threads supported by CUDA, reducing the number of threads in each dimension if necessary.
-	//! \param block block.
-	//! \sa MAX_THREADS_PER_BLOCK
 	inline void MakeSureBlockDoesNotHaveTooMuchThreads(dim3 & block) {
 
 		unsigned x = NumberThreadsPerBlockThatBestFit(block.x);

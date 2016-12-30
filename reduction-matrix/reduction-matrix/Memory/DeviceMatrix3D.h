@@ -2,7 +2,6 @@
 #define ReductionMatrixLib_DeviceMatrix3D_H
 
 #include <cassert>
-#include <cublas.h>
 
 #include "HostMatrix3D.h"
 #include "DeviceMemoryManager.h"

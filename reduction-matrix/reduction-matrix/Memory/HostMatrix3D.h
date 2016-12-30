@@ -2,6 +2,7 @@
 #define ReductionMatrixLib_HostMatrix3D_H
 
 #include <cassert>
+
 #include "BaseMatrix3D.h"
 #include "HostMemoryManager.h"
 

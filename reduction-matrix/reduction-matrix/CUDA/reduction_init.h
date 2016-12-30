@@ -2,61 +2,25 @@
 #define ReductionMatrixLib_reduction_init_h
 
 #include <cuda_runtime.h>
-#include "reduction_definitions.h"
-
-#ifdef _CONSOLE
-
 #include <iostream>
 
-using namespace std;
+#include "reduction_definitions.h"
 
-#endif
+using namespace std;
 
 class CudaDevice {
 
 	private:
-
-#if !__DEVICE_EMULATION__
 		cudaDeviceProp deviceProperties;
 		bool deviceSuportsCuda;
 		int device;
-#endif
 
-#ifdef _CONSOLE
 		void ShowProperty(const char * name, size_t value) {
 
 			cout << name << value << endl;
 		}
-#endif
 
 	public:
-
-#if __DEVICE_EMULATION__
-		bool SupportsCuda() {
-
-			return true;
-		}
-
-		int MaxThreadsPerBlock() {
-
-			return 512;
-		}
-
-		int OptimalBlockSize() {
-
-			return 16;
-		}
-
-#ifdef _CONSOLE
-		void ShowInfo() {
-
-			cout << "Device               : Emulation" << endl;
-
-			ShowProperty("Size of floating type: ", sizeof(cudafloat));
-		}
-#endif
-
-#else
 		CudaDevice() {
 
 			deviceSuportsCuda = false;
@@ -86,12 +50,41 @@ class CudaDevice {
 			return deviceProperties.maxThreadsPerBlock;
 		}
 
+		int MaxThreadsDimX() {
+
+			return deviceProperties.maxThreadsDim[0];
+		}
+
+		int MaxThreadsDimY() {
+
+			return deviceProperties.maxThreadsDim[1];
+		}
+
+		int MaxThreadsDimZ() {
+
+			return deviceProperties.maxThreadsDim[2];
+		}
+
+		int MaxGridSizeX() {
+
+			return deviceProperties.maxGridSize[0];
+		}
+
+		int MaxGridSizeY() {
+
+			return deviceProperties.maxGridSize[1];
+		}
+
+		int MaxGridSizeZ() {
+
+			return deviceProperties.maxGridSize[2];
+		}
+
 		int OptimalBlockSize() {
 
 			return ((deviceProperties.major < 2) ? 16 : 32);
 		}
 
-#ifdef _CONSOLE
 		void ShowInfo() {
 
 			ShowProperty("Device                                               : ", device);
@@ -107,7 +100,5 @@ class CudaDevice {
 
 			ShowProperty("Warp size                                            : ", deviceProperties.warpSize);
 		}
-#endif
-#endif
 };
 #endif

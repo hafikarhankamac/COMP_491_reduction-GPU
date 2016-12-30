@@ -2,7 +2,6 @@
 #define ReductionMatrixLib_DeviceMatrix_H
 
 #include <cassert>
-#include <cublas.h>
 
 #include "../CUDA/reduction_definitions.h"
 #include "HostMatrix.h"
@@ -98,36 +97,36 @@ namespace ReductionMatrixLib {
 			}
 	};
 
-	//! Create a cudafloat matrix, on the device, that automatically manages the memory used to hold its elements
-	template <> class DeviceMatrix<cudafloat> : public BaseMatrix<cudafloat> {
+	//! Create a float matrix, on the device, that automatically manages the memory used to hold its elements
+	template <> class DeviceMatrix<float> : public BaseMatrix<float> {
 		
 		private:
-			DeviceMemoryManager<cudafloat> deviceMem;
+			DeviceMemoryManager<float> deviceMem;
 
 		public:
 			//! Constructs an empty matrix
 			//! \param storingOrder defines if the matrix uses the row-major or column-major order to store the information
-			DeviceMatrix(StoringOrder storingOrder = RowMajor) : BaseMatrix<cudafloat>(deviceMem, storingOrder) {}
+			DeviceMatrix(StoringOrder storingOrder = RowMajor) : BaseMatrix<float>(deviceMem, storingOrder) {}
 
 			//! Constructs a matrix with a given number of rows and columns
 			//! \param rows the number of rows
 			//! \param columns the number of columns
 			//! \param storingOrder defines if the matrix uses the row-major or column-major order to store the information
-			DeviceMatrix(size_t rows, size_t columns, StoringOrder storingOrder = RowMajor) : BaseMatrix<cudafloat>(deviceMem, storingOrder) {
+			DeviceMatrix(size_t rows, size_t columns, StoringOrder storingOrder = RowMajor) : BaseMatrix<float>(deviceMem, storingOrder) {
 				
 				this->ResizeWithoutPreservingData(rows, columns);
 			}
 
 			//! Constructs a matrix identical to another
 			//! \param other another matrix
-			DeviceMatrix(const DeviceMatrix<cudafloat> & other) : BaseMatrix<cudafloat>(deviceMem) {
+			DeviceMatrix(const DeviceMatrix<float> & other) : BaseMatrix<float>(deviceMem) {
 				
 				this->AssignDeviceMatrix(other);
 			}
 
 			//! Constructs a matrix identical to an host matrix
 			//! \param other host matrix
-			DeviceMatrix(const HostMatrix<cudafloat> & other) : BaseMatrix<cudafloat>(deviceMem) {
+			DeviceMatrix(const HostMatrix<float> & other) : BaseMatrix<float>(deviceMem) {
 				
 				this->AssignHostMatrix(other);
 			}
@@ -137,7 +136,7 @@ namespace ReductionMatrixLib {
 			//! \return a reference to this matrix
 			//! \attention The storing order (major-row or major-column) becomes the same of the other matrix.
 			//! \sa IsRowMajor
-			DeviceMatrix<cudafloat> & operator = (const HostMatrix<cudafloat> & other) {
+			DeviceMatrix<float> & operator = (const HostMatrix<float> & other) {
 				
 				this->AssignHostMatrix(other);
 				
@@ -149,7 +148,7 @@ namespace ReductionMatrixLib {
 			//! \return a reference to this matrix
 			//! \attention The storing order (major-row or major-column) becomes the same of the other matrix.
 			//! \sa IsRowMajor
-			DeviceMatrix<cudafloat> & operator = (const DeviceMatrix<cudafloat> & other) {
+			DeviceMatrix<float> & operator = (const DeviceMatrix<float> & other) {
 				
 				this->AssignDeviceMatrix(other);
 				
@@ -158,7 +157,7 @@ namespace ReductionMatrixLib {
 
 			//! Constructs a matrix using the elements of a device temporary matrix (rvalue)
 			//! \param temporaryMatrix temporary device matrix containing the elements
-			DeviceMatrix(DeviceMatrix<cudafloat> && temporaryMatrix) : BaseMatrix<cudafloat>(deviceMem) {
+			DeviceMatrix(DeviceMatrix<float> && temporaryMatrix) : BaseMatrix<float>(deviceMem) {
 				
 				this->TransferOwnerShipFrom(temporaryMatrix);
 			}
@@ -166,7 +165,7 @@ namespace ReductionMatrixLib {
 			//! Replaces this matrix using a temporary matrix (rvalue)
 			//! \param temporaryMatrix temporary matrix
 			//! \return a reference to this matrix
-			DeviceMatrix<cudafloat> & operator = (DeviceMatrix<cudafloat> && temporaryMatrix) {
+			DeviceMatrix<float> & operator = (DeviceMatrix<float> && temporaryMatrix) {
 				
 				this->TransferOwnerShipFrom(temporaryMatrix);
 				
@@ -177,9 +176,9 @@ namespace ReductionMatrixLib {
 			//! \return the transposed of the matrix
 			//! \attention The returned matrix does not use the same method (row-major or column-major) for storing information as this matrix.
 			//! \sa ReplaceByTranspose, IsRowMajor
-			DeviceMatrix<cudafloat> Transpose() {
+			DeviceMatrix<float> Transpose() {
 				
-				HostMatrix<cudafloat> transpose(*this);
+				HostMatrix<float> transpose(*this);
 				transpose.ReplaceByTranspose();
 
 				return transpose;
