@@ -6,6 +6,18 @@
 namespace ReductionMatrixLib {
 
 	/*
+	inline unsigned int nextPow2(unsigned int x) {
+
+		--x;
+		x |= x >> 1;
+		x |= x >> 2;
+		x |= x >> 4;
+		x |= x >> 8;
+		x |= x >> 16;
+
+		return ++x;
+	}
+
 	void getNumBlocksAndThreads(int whichKernel, int n, int maxBlocks, int maxThreads, int maxGridSizeX, int maxThreadsPerBlock, int &blocks, int &threads) {
 
 		if (whichKernel < 3) {
@@ -28,9 +40,8 @@ namespace ReductionMatrixLib {
 			threads *= 2;
 		}
 
-		if (whichKernel == 6) {
+		if (whichKernel == 6)
 			blocks = MIN(maxBlocks, blocks);
-		}
 	}
 	*/
 

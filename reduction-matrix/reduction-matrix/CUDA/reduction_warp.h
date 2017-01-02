@@ -5,7 +5,7 @@
 
 namespace ReductionMatrixLib {
 
-	template <int blockSize> __device__ __forceinline__ void SumBeforeWarp(float * s) {
+	template <int blockSize> __device__ __forceinline__ void SumBeforeWarp(float *s) {
 
 		if (blockSize >= 1024) {
 			if (threadIdx.x < 512) s[threadIdx.x] += s[threadIdx.x + 512];
@@ -32,7 +32,7 @@ namespace ReductionMatrixLib {
 		}
 	}
 
-	template <int blockSize> __device__ __forceinline__ void SumWarp(volatile float * s) {
+	template <int blockSize> __device__ __forceinline__ void SumWarp(volatile float *s) {
 
 		if (blockSize >= 64) s[threadIdx.x] += s[threadIdx.x + 32];
 		if (blockSize >= 32) s[threadIdx.x] += s[threadIdx.x + 16];

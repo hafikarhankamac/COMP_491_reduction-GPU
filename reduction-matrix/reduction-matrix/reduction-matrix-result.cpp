@@ -3,7 +3,6 @@
 #include <ctime>
 
 #include "./CUDA/reduction_init.h"
-
 #include "./CUDA/reduction_matrix.h"
 
 using namespace ReductionMatrixLib;
@@ -47,8 +46,6 @@ int main(int argc, char * argv[]) {
 	srand((unsigned int)time(0));
 
 	printf("\n");
-
-	cudadevice.ShowInfo();
 
 	int iReductionMethod = 0;
 
@@ -100,7 +97,11 @@ int main(int argc, char * argv[]) {
 			bConsoleOut = true;
 	}
 
+	if (bConsoleOut) // print result to console
+		cudadevice.ShowInfo();
+
 	printf("\nExecution parameters\n\n");
+
 	printf("Matrix reduction method                              : %s\n", argv[1]);
 	printf("Matrix dimension                                     : %d\n", nDim);
 
@@ -113,15 +114,9 @@ int main(int argc, char * argv[]) {
 	printf("Matrix dimension to reduce                           : %d\n", nDimReduce);
 	printf("Matrix reduction kernel block size                   : %d\n", nBlockSize);
 
-	clock_t startTimeGPU;
+	clock_t startTimeGPU, startTimeCPU;
 
-	unsigned elapsedTimeGPU;
-
-	clock_t startTimeCPU;
-
-	unsigned elapsedTimeCPU;
-
-	cudaError_t error;
+	unsigned elapsedTimeGPU, elapsedTimeCPU;
 
 	int nRowsDim = 0,
 		nColumnsDim = 0,
@@ -129,16 +124,15 @@ int main(int argc, char * argv[]) {
 
 	int fCollectData = 1;
 
-	cudaEvent_t eventStart;
+	cudaError_t cudaError;
 
-	cudaEvent_t eventStop;
+	cudaEvent_t cudaEventStart, cudaEventStop;
 
 	if (nDim == TWO_DIMS) { // 2D matrix
-		CudaMatrix<float> i2DMatrix;
+		// input matrix
+		matrix2D<float> i2DMatrix(nRows, nColumns);
 
-		i2DMatrix.ResizeWithoutPreservingData(nRows, nColumns);
-
-		// initialize CUDA matrix for device with random or collection values
+		// initialize input matrix with random or collection values
 		for (int i = 0; i < nRows; i++)
 			for (int j = 0; j < nColumns; j++) {
 				if (!strcasecmp(argv[5], RANDOM_DATA)) {
@@ -149,12 +143,31 @@ int main(int argc, char * argv[]) {
 				}
 			}
 
-		// update device data with host data
-		i2DMatrix.UpdateDevice();
+		// allocate device memory for input matrix
+		float *d_i2DMatrix;
 
-		CudaMatrix<float> o2DMatrix;
+		cudaError = cudaMalloc((void **)&d_i2DMatrix, (nRows * nColumns * sizeof(float)));
 
-		HostMatrix<float> h2DMatrix;
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaMalloc input matrix returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
+
+			exit(EXIT_FAILURE);
+		}
+
+		// copy host data to device data for input matrix
+		cudaError = cudaMemcpy(d_i2DMatrix, i2DMatrix.Pointer(), (nRows * nColumns * sizeof(float)), cudaMemcpyHostToDevice);
+
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaMemcpy input matrix to device returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
+
+			exit(EXIT_FAILURE);
+		}
+
+		// output matrix
+		matrix2D<float> o2DMatrix;
+
+		// temporary matrix for serial CPU code implementation
+		matrix2D<float> h2DMatrix;
 
 		if (nDimReduce == 1) {
 			nRowsDim = 1;
@@ -165,11 +178,11 @@ int main(int argc, char * argv[]) {
 			nColumnsDim = 1;
 		}
 
-		o2DMatrix.ResizeWithoutPreservingData(nRowsDim, nColumnsDim);
+		o2DMatrix.Resize(nRowsDim, nColumnsDim);
 
-		h2DMatrix.ResizeWithoutPreservingData(nRowsDim, nColumnsDim);
+		h2DMatrix.Resize(nRowsDim, nColumnsDim);
 
-		// initialize CUDA and Host output matrices with zeroes
+		// initialize output matrices with zeroes
 		for (int i = 0; i < nRowsDim; i++)
 			for (int j = 0; j < nColumnsDim; j++) {
 				o2DMatrix(i, j) = (float)0;
@@ -177,30 +190,47 @@ int main(int argc, char * argv[]) {
 				h2DMatrix(i, j) = (float)0;
 			}
 
-		// update device data with host data
-		o2DMatrix.UpdateDevice();
+		// allocate device memory for output matrix
+		float *d_o2DMatrix;
+
+		cudaError = cudaMalloc((void **)&d_o2DMatrix, (nRowsDim * nColumnsDim * sizeof(float)));
+
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaMalloc output matrix returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
+
+			exit(EXIT_FAILURE);
+		}
+
+		// copy host data to device data for output matrix
+		cudaError = cudaMemcpy(d_o2DMatrix, o2DMatrix.Pointer(), (nRowsDim * nColumnsDim * sizeof(float)), cudaMemcpyHostToDevice);
+
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaMemcpy output matrix to device returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
+
+			exit(EXIT_FAILURE);
+		}
 
 		// allocate CUDA events that we'll use for timing
-		error = cudaEventCreate(&eventStart);
+		cudaError = cudaEventCreate(&cudaEventStart);
 
-		if (error != cudaSuccess) {
-			fprintf(stderr, "Failed to create start event (error code %s)!\n", cudaGetErrorString(error));
-
-			exit(EXIT_FAILURE);
-		}
-
-		error = cudaEventCreate(&eventStop);
-
-		if (error != cudaSuccess) {
-			fprintf(stderr, "Failed to create stop event (error code %s)!\n", cudaGetErrorString(error));
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaEventCreate start event returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
 
 			exit(EXIT_FAILURE);
 		}
 
-		error = cudaEventRecord(eventStart, NULL);
+		cudaError = cudaEventCreate(&cudaEventStop);
 
-		if (error != cudaSuccess) {
-			fprintf(stderr, "Failed to record start event (error code %s)!\n", cudaGetErrorString(error));
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaEventCreate stop event returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
+
+			exit(EXIT_FAILURE);
+		}
+
+		cudaError = cudaEventRecord(cudaEventStart, NULL);
+
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaEventRecord start event returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
 
 			exit(EXIT_FAILURE);
 		}
@@ -209,48 +239,57 @@ int main(int argc, char * argv[]) {
 
 		// Execute GPU code
 		if (iReductionMethod == SUM_METHOD) // matrix reduction method is sum
-			//ReductionMatrix::SumMatrix(i2DMatrix.GetDeviceMatrix(), o2DMatrix.GetDeviceMatrix(), nRows, nColumns, nDimReduce, cudadevice.MaxThreadsPerBlock(), nBlockSize);
-			ReductionMatrix::SumMatrixX(i2DMatrix.GetDeviceMatrix(), o2DMatrix.GetDeviceMatrix(), nRows, nColumns, nDimReduce, cudadevice.MaxThreadsPerBlock(), nBlockSize);
+			ReductionMatrix::SumMatrix(d_i2DMatrix, d_o2DMatrix, nRows, nColumns, nDimReduce, cudadevice.MaxThreadsPerBlock(), nBlockSize);
+			//ReductionMatrix::SumMatrixX(d_i2DMatrix, d_o2DMatrix, nRows, nColumns, nDimReduce, cudadevice.MaxThreadsPerBlock(), nBlockSize);
 
 		if (iReductionMethod == MULTIPLY_METHOD) // matrix reduction method is multiply (vector)
-			ReductionMatrix::MultiplyMatrix(i2DMatrix.GetDeviceMatrix(), o2DMatrix.GetDeviceMatrix(), nRows, nColumns, nDimReduce, cudadevice.MaxThreadsPerBlock(), nBlockSize);
+			ReductionMatrix::MultiplyMatrix(d_i2DMatrix, d_o2DMatrix, nRows, nColumns, nDimReduce, cudadevice.MaxThreadsPerBlock(), nBlockSize);
 
 		//cudaDeviceSynchronize();
 
-		// update host data with device data
-		o2DMatrix.UpdateHost();
-
 		elapsedTimeGPU = (clock() - startTimeGPU);
 
-		error = cudaEventRecord(eventStop, NULL);
+		cudaError = cudaEventRecord(cudaEventStop, NULL);
 
-		if (error != cudaSuccess) {
-			fprintf(stderr, "Failed to record stop event (error code %s)!\n", cudaGetErrorString(error));
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaEventRecord stop event returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
 
 			exit(EXIT_FAILURE);
 		}
 
-		error = cudaEventSynchronize(eventStop);
+		// copy device data to host data for output matrix
+		cudaError = cudaMemcpy(o2DMatrix.Pointer(), d_o2DMatrix, (nRowsDim * nColumnsDim * sizeof(float)), cudaMemcpyDeviceToHost);
 
-		if (error != cudaSuccess) {
-			fprintf(stderr, "Failed to synchronize on the stop event (error code %s)!\n", cudaGetErrorString(error));
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaMemcpy output matrix to host returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
+
+			exit(EXIT_FAILURE);
+		}
+
+		cudaError = cudaEventSynchronize(cudaEventStop);
+
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaEventSynchronize stop event returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
 
 			exit(EXIT_FAILURE);
 		}
 
 		float msecTotal = 0.0f;
-		error = cudaEventElapsedTime(&msecTotal, eventStart, eventStop);
+		cudaError = cudaEventElapsedTime(&msecTotal, cudaEventStart, cudaEventStop);
 
-		if (error != cudaSuccess) {
-			fprintf(stderr, "Failed to get time elapsed between events (error code %s)!\n", cudaGetErrorString(error));
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaEventElapsedTime start and stop events returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
 
 			exit(EXIT_FAILURE);
 		}
 
-		float msecPerMatrixMul = msecTotal;
-		//double flopsPerMatrixMul = 2.0 * (double)nRows * (double)nColumns;
-		double flopsPerMatrixMul = (double)nRows * (double)nColumns;
-		double gigaFlops = (flopsPerMatrixMul * 1.0e-9f) / (msecPerMatrixMul / 1000.0f);
+		// free device memory
+		cudaFree(d_o2DMatrix);
+		cudaFree(d_i2DMatrix);
+
+		float msecPerMatrixReduction = msecTotal;
+		double flopsPerMatrixReduction = (double)nRows * (double)nColumns;
+		double gigaFlops = (flopsPerMatrixReduction * 1.0e-9f) / (msecPerMatrixReduction / 1000.0f);
 
 		startTimeCPU = clock();
 
@@ -290,24 +329,17 @@ int main(int argc, char * argv[]) {
 			}
 		} // print result to console
 
-		printf("\nPerformance = %.2f GFlop/s, Time = %.3f msec, Size = %.0f Ops, WorkgroupSize = %u threads/block\n",
-			gigaFlops,
-			msecPerMatrixMul,
-			flopsPerMatrixMul,
-			(nRows * nColumns / nBlockSize));
+		printf("\nPerformance = %.2f GFlop/s, Time = %.3f msec, Size = %.0f Ops, WorkgroupSize = %u threads/block\n", gigaFlops, msecPerMatrixReduction, flopsPerMatrixReduction, (nRows * nColumns / nBlockSize));
 
-		//printf("\nElapsed time GPU = %.3f msec\n", (double)elapsedTimeGPU / CLOCKS_PER_SEC / 1000);
-		//printf("\nElapsed time CPU = %.3f msec\n", (double)elapsedTimeCPU / CLOCKS_PER_SEC / 1000);
 		printf("\nElapsed time GPU = %.3f sec\n", (double)elapsedTimeGPU / CLOCKS_PER_SEC);
 		printf("\nElapsed time CPU = %.3f sec\n", (double)elapsedTimeCPU / CLOCKS_PER_SEC);
 	} // 2D matrix
 
 	if (nDim == THREE_DIMS) { // 3D matrix
-		CudaMatrix3D<float> i3DMatrix;
+		// input matrix
+		matrix3D<float> i3DMatrix(nRows, nColumns, nPlanes);
 
-		i3DMatrix.ResizeWithoutPreservingData(nRows, nColumns, nPlanes);
-
-		// initialize CUDA matrix for device with random or collection values
+		// initialize input matrix with random or collection values
 		for (int k = 0; k < nPlanes; k++)
 			for (int i = 0; i < nRows; i++)
 				for (int j = 0; j < nColumns; j++) {
@@ -319,12 +351,31 @@ int main(int argc, char * argv[]) {
 					}
 				}
 
-		// update device data with host data
-		i3DMatrix.UpdateDevice();
+		// allocate device memory for input matrix
+		float *d_i3DMatrix;
 
-		CudaMatrix3D<float> o3DMatrix;
+		cudaError = cudaMalloc((void **)&d_i3DMatrix, (nRows * nColumns * nPlanes * sizeof(float)));
 
-		HostMatrix3D<float> h3DMatrix;
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaMalloc input matrix returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
+
+			exit(EXIT_FAILURE);
+		}
+
+		// copy host data to device data for input matrix
+		cudaError = cudaMemcpy(d_i3DMatrix, i3DMatrix.Pointer(), (nRows * nColumns * nPlanes * sizeof(float)), cudaMemcpyHostToDevice);
+
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaMemcpy input matrix to device returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
+
+			exit(EXIT_FAILURE);
+		}
+
+		// output matrix
+		matrix3D<float> o3DMatrix;
+
+		// temporary matrix for serial CPU code implementation
+		matrix3D<float> h3DMatrix;
 
 		if (nDimReduce == 1) {
 			nRowsDim = 1;
@@ -342,11 +393,11 @@ int main(int argc, char * argv[]) {
 			nPlanesDim = 1;
 		}
 
-		o3DMatrix.ResizeWithoutPreservingData(nRowsDim, nColumnsDim, nPlanesDim);
+		o3DMatrix.Resize(nRowsDim, nColumnsDim, nPlanesDim);
 
-		h3DMatrix.ResizeWithoutPreservingData(nRowsDim, nColumnsDim, nPlanesDim);
+		h3DMatrix.Resize(nRowsDim, nColumnsDim, nPlanesDim);
 
-		// initialize CUDA and Host output matrices with zeroes
+		// initialize output matrices with zeroes
 		for (int i = 0; i < nRowsDim; i++)
 			for (int j = 0; j < nColumnsDim; j++) {
 				for (int k = 0; k < nPlanesDim; k++) {
@@ -356,30 +407,47 @@ int main(int argc, char * argv[]) {
 				}
 			}
 
-		// update device data with host data
-		o3DMatrix.UpdateDevice();
+		// allocate device memory for output matrix
+		float *d_o3DMatrix;
+
+		cudaError = cudaMalloc((void **)&d_o3DMatrix, (nRowsDim * nColumnsDim * nPlanesDim * sizeof(float)));
+
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaMalloc output matrix returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
+
+			exit(EXIT_FAILURE);
+		}
+
+		// copy host data to device data for output matrix
+		cudaError = cudaMemcpy(d_o3DMatrix, o3DMatrix.Pointer(), (nRowsDim * nColumnsDim * nPlanesDim * sizeof(float)), cudaMemcpyHostToDevice);
+
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaMemcpy output matrix to device returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
+
+			exit(EXIT_FAILURE);
+		}
 
 		// allocate CUDA events that we'll use for timing
-		error = cudaEventCreate(&eventStart);
+		cudaError = cudaEventCreate(&cudaEventStart);
 
-		if (error != cudaSuccess) {
-			fprintf(stderr, "Failed to create start event (error code %s)!\n", cudaGetErrorString(error));
-
-			exit(EXIT_FAILURE);
-		}
-
-		error = cudaEventCreate(&eventStop);
-
-		if (error != cudaSuccess) {
-			fprintf(stderr, "Failed to create stop event (error code %s)!\n", cudaGetErrorString(error));
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaEventCreate start event returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
 
 			exit(EXIT_FAILURE);
 		}
 
-		error = cudaEventRecord(eventStart, NULL);
+		cudaError = cudaEventCreate(&cudaEventStop);
 
-		if (error != cudaSuccess) {
-			fprintf(stderr, "Failed to record start event (error code %s)!\n", cudaGetErrorString(error));
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaEventCreate stop event returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
+
+			exit(EXIT_FAILURE);
+		}
+
+		cudaError = cudaEventRecord(cudaEventStart, NULL);
+
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaEventRecord start event returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
 
 			exit(EXIT_FAILURE);
 		}
@@ -388,47 +456,56 @@ int main(int argc, char * argv[]) {
 
 		// Execute GPU code
 		if (iReductionMethod == SUM_METHOD) // matrix reduction method is sum
-			ReductionMatrix::SumMatrix3D(i3DMatrix.Get3DDeviceMatrix(), o3DMatrix.Get3DDeviceMatrix(), nRows, nColumns, nPlanes, nDimReduce, cudadevice.MaxThreadsPerBlock(), nBlockSize);
+			ReductionMatrix::SumMatrix3D(d_i3DMatrix, d_o3DMatrix, nRows, nColumns, nPlanes, nDimReduce, cudadevice.MaxThreadsPerBlock(), nBlockSize);
 
 		if (iReductionMethod == MULTIPLY_METHOD) // matrix reduction method is multiply (vector)
-			ReductionMatrix::MultiplyMatrix3D(i3DMatrix.Get3DDeviceMatrix(), o3DMatrix.Get3DDeviceMatrix(), nRows, nColumns, nPlanes, nDimReduce, cudadevice.MaxThreadsPerBlock(), nBlockSize);
+			ReductionMatrix::MultiplyMatrix3D(d_i3DMatrix, d_o3DMatrix, nRows, nColumns, nPlanes, nDimReduce, cudadevice.MaxThreadsPerBlock(), nBlockSize);
 
 		//cudaDeviceSynchronize();
 
-		// update host data with device data
-		o3DMatrix.UpdateHost();
-
 		elapsedTimeGPU = (clock() - startTimeGPU);
 
-		error = cudaEventRecord(eventStop, NULL);
+		cudaError = cudaEventRecord(cudaEventStop, NULL);
 
-		if (error != cudaSuccess) {
-			fprintf(stderr, "Failed to record stop event (error code %s)!\n", cudaGetErrorString(error));
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaEventRecord stop event returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
 
 			exit(EXIT_FAILURE);
 		}
 
-		error = cudaEventSynchronize(eventStop);
+		// copy device data to host data for output matrix
+		cudaError = cudaMemcpy(o3DMatrix.Pointer(), d_o3DMatrix, (nRowsDim * nColumnsDim * nPlanesDim * sizeof(float)), cudaMemcpyDeviceToHost);
 
-		if (error != cudaSuccess) {
-			fprintf(stderr, "Failed to synchronize on the stop event (error code %s)!\n", cudaGetErrorString(error));
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaMemcpy output matrix to host returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
+
+			exit(EXIT_FAILURE);
+		}
+
+		cudaError = cudaEventSynchronize(cudaEventStop);
+
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaEventSynchronize stop event returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
 
 			exit(EXIT_FAILURE);
 		}
 
 		float msecTotal = 0.0f;
-		error = cudaEventElapsedTime(&msecTotal, eventStart, eventStop);
+		cudaError = cudaEventElapsedTime(&msecTotal, cudaEventStart, cudaEventStop);
 
-		if (error != cudaSuccess) {
-			fprintf(stderr, "Failed to get time elapsed between events (error code %s)!\n", cudaGetErrorString(error));
+		if (cudaError != cudaSuccess) {
+			printf("\ncudaEventElapsedTime start and stop events returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
 
 			exit(EXIT_FAILURE);
 		}
 
-		float msecPerMatrixMul = msecTotal;
-		//double flopsPerMatrixMul = 3.0 * (double)nRows * (double)nColumns * (double)nPlanes;
-		double flopsPerMatrixMul = (double)nRows * (double)nColumns * (double)nPlanes;
-		double gigaFlops = (flopsPerMatrixMul * 1.0e-9f) / (msecPerMatrixMul / 1000.0f);
+		// free device memory
+		cudaFree(d_o3DMatrix);
+		cudaFree(d_i3DMatrix);
+
+		float msecPerMatrixReduction = msecTotal;
+		double flopsPerMatrixReduction = (double)nRows * (double)nColumns * (double)nPlanes;
+		double gigaFlops = (flopsPerMatrixReduction * 1.0e-9f) / (msecPerMatrixReduction / 1000.0f);
 
 		startTimeCPU = clock();
 
@@ -479,14 +556,8 @@ int main(int argc, char * argv[]) {
 			}
 		} // print result to console
 
-		printf("\nPerformance = %.2f GFlop/s, Time = %.3f msec, Size = %.0f Ops, WorkgroupSize = %u threads/block\n",
-			gigaFlops,
-			msecPerMatrixMul,
-			flopsPerMatrixMul,
-			(nRows * nColumns * nPlanes / nBlockSize));
+		printf("\nPerformance = %.2f GFlop/s, Time = %.3f msec, Size = %.0f Ops, WorkgroupSize = %u threads/block\n", gigaFlops, msecPerMatrixReduction, flopsPerMatrixReduction, (nRows * nColumns * nPlanes / nBlockSize));
 
-		//printf("\nElapsed time GPU = %.3f msec\n", (double)elapsedTimeGPU / CLOCKS_PER_SEC / 1000);
-		//printf("\nElapsed time CPU = %.3f msec\n", (double)elapsedTimeCPU / CLOCKS_PER_SEC / 1000);
 		printf("\nElapsed time GPU = %.3f sec\n", (double)elapsedTimeGPU / CLOCKS_PER_SEC);
 		printf("\nElapsed time CPU = %.3f sec\n", (double)elapsedTimeCPU / CLOCKS_PER_SEC);
 	} // 3D matrix

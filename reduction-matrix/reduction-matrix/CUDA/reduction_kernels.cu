@@ -1,8 +1,8 @@
 #include "reduction_kernels.h"
 #include "reduction_warp.h"
 
-#include <stdio.h>
 #include <cuda_runtime.h>
+#include <stdio.h>
 
 namespace ReductionMatrixLib {
 

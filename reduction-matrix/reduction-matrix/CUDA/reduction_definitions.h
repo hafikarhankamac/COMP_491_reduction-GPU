@@ -6,7 +6,13 @@
 
 #ifndef MIN
 
-#define MIN(x,y) ((x < y) ? x : y)
+#define MIN(x, y) ((x < y) ? x : y)
+
+#endif
+
+#ifndef MAX
+
+#define MAX(x, y) (x > y ? x : y)
 
 #endif
 
@@ -17,6 +23,8 @@
 
 #define OPTIMAL_BLOCK_SIZE_REDUCTION 128
 
-#define OPTIMAL_SHARED_MEMORY_SIZE 8192
+//#define OPTIMAL_SHARED_MEMORY_SIZE 8192
+
+#define OPTIMAL_SHARED_MEMORY_SIZE CUDA_MAX_THREADS_PER_BLOCK
 
 #endif
